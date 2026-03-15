@@ -1,1 +1,23 @@
+# Secrets
+.env
+
+# Environments
+.venv/
+env/
+venv/
+
+# Raw data and dataset folders
+archive/
+data/
+
+# Python/Jupyter junk
+__pycache__/
 .ipynb_checkpoints/
+
+# Data files (Large CSVs)
+*.csv
+
+# Model Artifacts (Large Binaries)
+*.keras
+*.h5
+*.pickle
