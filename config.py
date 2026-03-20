@@ -2,47 +2,33 @@ from __future__ import annotations
 
 from pathlib import Path
 
-# =========================
-# Audio loading / cleaning
-# =========================
-TARGET_SR = 16000
+
+TARGET_SR = 22050   # librosa default
 MONO = True
 
-NORMALIZE_AUDIO = True
-TRIM_SILENCE = True
-TRIM_TOP_DB = 20
+# NORMALIZE_AUDIO must be False to match the training pipeline.Setting this to True will shift the MFCC distribution and break inference.
+NORMALIZE_AUDIO = False #if its true the model might think happy is angry 
+TRIM_SILENCE = True #deletes silence at the begining and end of the audio
+TRIM_TOP_DB = 20 #silence is defined as sound below 20 dezibel
 
-# =========================
-# Fixed-length policy
-# =========================
-TARGET_DURATION_SEC = 2.5
-CROP_MODE = "start"      # options: "start", "center"
-PAD_MODE = "constant"    # options: "constant", "wrap"
 
-# =========================
-# Feature extraction
-# =========================
-N_MFCC = 30
-EPSILON = 1e-10
 
-# =========================
-# Artifacts / model files
-# =========================
-ARTIFACTS_DIR = Path("artifacts")
-ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+TARGET_DURATION_SEC = 2.5 #if the audio is longer than 2.5 seconds, it will be cropped
+MIN_DURATION_SEC = 0.5   # if the audio is shorter than this after trimming, it will be rejected
+CROP_MODE = "start"      # if the audio is longer than 2.5 seconds, it will be cropped from the start
+PAD_MODE = "constant"    # if the audio is shorter than 2.5 seconds, it will be padded with zeros(constant)
 
-MODEL_PATH = ARTIFACTS_DIR / "final_emotion_model.keras"
-SCALER_PATH = ARTIFACTS_DIR / "scaler.pickle"
-ENCODER_PATH = ARTIFACTS_DIR / "encoder.pickle"
 
-# Optional dataset arrays (only if you choose to save them)
-X_TRAIN_PATH = ARTIFACTS_DIR / "x_traincnn.npy"
-X_TEST_PATH = ARTIFACTS_DIR / "x_testcnn.npy"
-Y_TRAIN_PATH = ARTIFACTS_DIR / "y_train.npy"
-Y_TEST_PATH = ARTIFACTS_DIR / "y_test.npy"
+N_MFCC = 40 # 80 features total: 40 MFCC means + 40 MFCC standard deviations
+EPSILON = 1e-10 # a very small number to prevent division by zero
 
-# =========================
-# Data directories
-# =========================
-RAW_DIR = "raw_audio"
+
+ASSETS_DIR = Path("model_assets")
+
+MODEL_PATH  = ASSETS_DIR / "final_emotion_model.keras"
+SCALER_PATH = ASSETS_DIR / "scaler.pickle"
+ENCODER_PATH = ASSETS_DIR / "encoder.pickle"
+
+
+RAW_DIR   = "raw_audio"
 CLEAN_DIR = "clean_audio"
