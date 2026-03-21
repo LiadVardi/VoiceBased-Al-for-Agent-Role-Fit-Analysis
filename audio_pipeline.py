@@ -27,6 +27,8 @@ from config import (
     TARGET_SR,
     MONO,
     NORMALIZE_AUDIO,
+    NORMALIZE_TYPE,
+    TARGET_RMS,
     TRIM_SILENCE,
     TRIM_TOP_DB,
     TARGET_DURATION_SEC,
@@ -76,17 +78,28 @@ def load_audio_from_bytes( #loads the audio file from azure
 # 2. Cleaning helpers
 def normalize_audio(
     audio: np.ndarray,
+    method: str = NORMALIZE_TYPE,
+    target_rms: float = TARGET_RMS,
     epsilon: float = EPSILON,
 ) -> np.ndarray:
-
-    #Peak-normalize audio to [-1, 1].
-
+    """Normalize audio level using Peak or RMS."""
     if audio.size == 0:
         return audio.astype(np.float32)
-    peak = float(np.max(np.abs(audio)))
-    if peak < epsilon:
-        return audio.astype(np.float32)
-    return (audio / peak).astype(np.float32)
+
+    if method == "peak":
+        peak = float(np.max(np.abs(audio)))
+        if peak < epsilon:
+            return audio.astype(np.float32)
+        return (audio / peak).astype(np.float32)
+        
+    elif method == "rms":
+        current_rms = float(np.sqrt(np.mean(audio**2)))
+        if current_rms < epsilon:
+            return audio.astype(np.float32)
+        return (audio * (target_rms / current_rms)).astype(np.float32)
+        
+    else:
+        raise ValueError(f"Unknown NORMALIZE_TYPE: {method}")
 
 
 def trim_silence(

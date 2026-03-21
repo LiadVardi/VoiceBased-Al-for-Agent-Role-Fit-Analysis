@@ -220,42 +220,38 @@ def assign_splits(
     manifest: pd.DataFrame,
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
+    val_df: pd.DataFrame | None = None,
     path_col: str = "Path",
 ) -> pd.DataFrame:
     """
-    Label each row in the manifest as 'train' or 'test' based on the split.
+    Label each row in the manifest as 'train', 'val', or 'test' based on the split.
 
     Parameters
     ----------
-    manifest : pd.DataFrame
-        Output of build_manifest().
-    train_df, test_df : pd.DataFrame
-        DataFrames of original files after speaker_split().
-    path_col : str
-        Column in train_df/test_df that holds blob paths.
-
-    Returns
-    -------
-    pd.DataFrame
-        Manifest with 'split' column populated.
+    manifest : pd.DataFrame   Output of build_manifest().
+    train_df  : original files for training.
+    test_df   : original files for test (locked holdout).
+    val_df    : original files for validation (optional, used for EarlyStopping).
+    path_col  : column in each df holding blob paths.
     """
-    manifest = manifest.copy()
+    manifest    = manifest.copy()
     train_paths = set(train_df[path_col])
     test_paths  = set(test_df[path_col])
+    val_paths   = set(val_df[path_col]) if val_df is not None and len(val_df) > 0 else set()
 
     def _label(fp):
-        if fp in train_paths:
-            return "train"
-        if fp in test_paths:
-            return "test"
+        if fp in train_paths: return "train"
+        if fp in val_paths:   return "val"
+        if fp in test_paths:  return "test"
         return "unassigned"
 
     manifest["split"] = manifest["filepath"].apply(_label)
 
-    train_count = (manifest["split"] == "train").sum()
-    test_count  = (manifest["split"] == "test").sum()
-    print(f"Splits assigned — train: {train_count}, test: {test_count}")
+    counts = manifest["split"].value_counts()
+    print(f"Splits assigned — train: {counts.get('train', 0)}, "
+          f"val: {counts.get('val', 0)}, test: {counts.get('test', 0)}")
     return manifest
+
 
 
 # ---------------------------------------------------------------------------

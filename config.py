@@ -6,10 +6,12 @@ from pathlib import Path
 TARGET_SR = 22050   # librosa default
 MONO = True
 
-# NORMALIZE_AUDIO must be False to match the training pipeline.Setting this to True will shift the MFCC distribution and break inference.
-NORMALIZE_AUDIO = False #if its true the model might think happy is angry 
+# Normalization policy: RMS normalization limits real-world volume differences
+NORMALIZE_AUDIO = True
+NORMALIZE_TYPE = "rms"   # "rms" or "peak"
+TARGET_RMS = 0.05        # Target loudness for RMS normalization (0.05 is standard for speech)
 TRIM_SILENCE = True #deletes silence at the begining and end of the audio
-TRIM_TOP_DB = 20 #silence is defined as sound below 20 dezibel
+TRIM_TOP_DB = 30 #silence is defined as sound below 30 dezibel
 
 
 
@@ -20,11 +22,27 @@ PAD_MODE = "constant"    # if the audio is shorter than 2.5 seconds, it will be 
 
 
 N_MFCC = 40
-# Total feature vector size:
-#   6 × N_MFCC  →  MFCC mean/std + Δ-MFCC mean/std + ΔΔ-MFCC mean/std  (240)
-#   6 × 2       →  RMS, ZCR, spectral centroid, bandwidth, rolloff, F0    ( 12)
 N_FEATURES = 6 * N_MFCC + 12   # 252
 EPSILON = 1e-10 # a very small number to prevent division by zero
+
+# val = used for hyperparameter tuning / EarlyStopping.
+# test = LOCKED — only touched for the final evaluation report.
+VAL_SIZE  = 0.15   # 15% of speakers go to validation
+TEST_SIZE = 0.15   # 15% of speakers go to test (locked holdout)
+
+
+# ── Augmentation ──────────────────────────────────────────────────────────────
+# Profile controls which augmentations are applied to the TRAINING set only.
+#   "none"  → no augmentation  (baseline ablation)
+#   "light" → noise + mild pitch shift only
+#   "full"  → all four techniques with full ranges
+AUGMENTATION_PROFILE = "full"
+
+# Per-technique parameter ranges (used by augmentation.py)
+NOISE_AMP_RANGE    = (0.005, 0.035)  # fraction of signal peak
+STRETCH_RATE_RANGE = (0.80,  1.20)   # < 1 = slower,  > 1 = faster
+SHIFT_MS_RANGE     = (-200,  200)    # time shift in milliseconds (±200ms)
+PITCH_STEPS_RANGE  = (-2.0,  2.0)    # semitones (±2 = about one whole tone)
 
 
 ASSETS_DIR = Path("model_assets")

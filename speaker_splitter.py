@@ -1,3 +1,5 @@
+# This code makes sure that the same speaker will not be in the train and test set.
+
 from __future__ import annotations
 
 import re
@@ -81,41 +83,83 @@ def speaker_split(
     speaker_col: str = "speaker_id",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
 
-    if speaker_col not in df.columns:
-        raise ValueError(
-            f"Column '{speaker_col}' not found. "
-            f"Call add_speaker_column(df) first."
-        )
-
-    groups = df[speaker_col].values
-
-    splitter = GroupShuffleSplit(
-        n_splits=1,
+    train_df, test_df, _ = speaker_three_way_split(
+        df,
+        val_size=0.0,
         test_size=test_size,
         random_state=random_state,
+        speaker_col=speaker_col,
     )
-
-    train_idx, test_idx = next(splitter.split(df, groups=groups))
-
-    train_df = df.iloc[train_idx].reset_index(drop=True)
-    test_df  = df.iloc[test_idx].reset_index(drop=True)
-
-    train_speakers = set(train_df[speaker_col])
-    test_speakers  = set(test_df[speaker_col])
-    overlap = train_speakers & test_speakers
-
-    if overlap:
-        raise RuntimeError(
-            f"BUG: {len(overlap)} speaker(s) appear in both train and test! "
-            f"Overlapping: {overlap}"
-        )
-
-    print(f" Speaker-aware split complete")
-    print(f"   Train: {len(train_df):>5} files | {len(train_speakers):>3} unique speakers")
-    print(f"   Test:  {len(test_df):>5} files | {len(test_speakers):>3} unique speakers")
-    print(f"   Overlap: none ✓")
-
     return train_df, test_df
+
+
+def speaker_three_way_split( # This is the main function that splits the data into train, val, and test sets.
+    df: pd.DataFrame,
+    val_size: float = 0.15,
+    test_size: float = 0.15,
+    random_state: int = 42,
+    speaker_col: str = "speaker_id",
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    Speaker-aware three-way split: train / val / test.
+
+    Guarantees no speaker appears in more than one split.
+
+    Strategy
+    --------
+    Step 1: Split all speakers -> (train+val) | test
+    Step 2: Split (train+val)  -> train       | val
+
+    Parameters
+    ----------
+    val_size  : fraction of ALL speakers going to val  (e.g. 0.15)
+    test_size : fraction of ALL speakers going to test (e.g. 0.15)
+
+    Returns
+    -------
+    train_df, val_df, test_df
+    """
+    if speaker_col not in df.columns:
+        raise ValueError(f"Column '{speaker_col}' not found. Call add_speaker_column(df) first.")
+
+    groups = df[speaker_col].values
+    total  = len(df)
+
+    # ── Step 1: carve off the test set ───────────────────────────────────────
+    splitter1 = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=random_state)
+    trainval_idx, test_idx = next(splitter1.split(df, groups=groups))
+
+    df_trainval = df.iloc[trainval_idx].reset_index(drop=True)
+    test_df     = df.iloc[test_idx].reset_index(drop=True)
+
+    # ── Step 2: carve off the val set from the remaining pool ─────────────────
+    if val_size > 0:
+        # Rescale val_size: we want val_size% of TOTAL, but we're splitting (1-test_size)
+        rescaled_val = val_size / (1.0 - test_size)
+        groups2      = df_trainval[speaker_col].values
+        splitter2    = GroupShuffleSplit(n_splits=1, test_size=rescaled_val, random_state=random_state)
+        train_idx2, val_idx2 = next(splitter2.split(df_trainval, groups=groups2))
+        train_df = df_trainval.iloc[train_idx2].reset_index(drop=True)
+        val_df   = df_trainval.iloc[val_idx2].reset_index(drop=True)
+    else:
+        train_df = df_trainval
+        val_df   = df.iloc[[]].reset_index(drop=True)  # empty
+
+    # ── Sanity check ─────────────────────────────────────────────────────────
+    train_spk = set(train_df[speaker_col])
+    val_spk   = set(val_df[speaker_col])
+    test_spk  = set(test_df[speaker_col])
+    overlap   = (train_spk & val_spk) | (train_spk & test_spk) | (val_spk & test_spk)
+    if overlap:
+        raise RuntimeError(f"BUG: Speaker overlap detected: {overlap}")
+
+    print(f"Speaker-aware 3-way split complete")
+    print(f"   Train: {len(train_df):>5} files | {len(train_spk):>3} speakers")
+    print(f"   Val:   {len(val_df):>5} files | {len(val_spk):>3} speakers  (used for EarlyStopping)")
+    print(f"   Test:  {len(test_df):>5} files | {len(test_spk):>3} speakers  (LOCKED until final eval)")
+    print(f"   Overlap between any two splits: none ✓")
+
+    return train_df, val_df, test_df
 
 
 if __name__ == "__main__":
