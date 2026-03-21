@@ -19,7 +19,11 @@ CROP_MODE = "start"      # if the audio is longer than 2.5 seconds, it will be c
 PAD_MODE = "constant"    # if the audio is shorter than 2.5 seconds, it will be padded with zeros(constant)
 
 
-N_MFCC = 40 # 80 features total: 40 MFCC means + 40 MFCC standard deviations
+N_MFCC = 40
+# Total feature vector size:
+#   6 × N_MFCC  →  MFCC mean/std + Δ-MFCC mean/std + ΔΔ-MFCC mean/std  (240)
+#   6 × 2       →  RMS, ZCR, spectral centroid, bandwidth, rolloff, F0    ( 12)
+N_FEATURES = 6 * N_MFCC + 12   # 252
 EPSILON = 1e-10 # a very small number to prevent division by zero
 
 

@@ -34,6 +34,7 @@ from config import (
     CROP_MODE,
     PAD_MODE,
     N_MFCC,
+    N_FEATURES,
     EPSILON,
 )
 
@@ -183,16 +184,89 @@ def preprocess_audio_file(file_path: PathLike) -> tuple[np.ndarray, int]:
 # 4. Feature extraction
 def extract_features(audio: np.ndarray, sr: int, n_mfcc: int = N_MFCC) -> np.ndarray:
     """
-    Extract an 80-dimensional feature vector from a preprocessed audio array.
+    Extract a 252-dimensional feature vector from a preprocessed audio array.
 
-    Feature layout (must match training):
-        indices  0..39  ->  MFCC means
-        indices 40..79  ->  MFCC standard deviations
+    Feature layout (must match training — see get_feature_names() for full schema):
+        [0   : 40 ]  MFCC mean              (n_mfcc values)
+        [40  : 80 ]  MFCC std
+        [80  : 120]  delta-MFCC mean
+        [120 : 160]  delta-MFCC std
+        [160 : 200]  delta²-MFCC mean
+        [200 : 240]  delta²-MFCC std
+        [240 : 242]  RMS energy             (mean, std)
+        [242 : 244]  Zero-crossing rate     (mean, std)
+        [244 : 246]  Spectral centroid      (mean, std)
+        [246 : 248]  Spectral bandwidth     (mean, std)
+        [248 : 250]  Spectral rolloff       (mean, std)
+        [250 : 252]  F0 / pitch             (mean, std over voiced frames)
+
+    Total: N_FEATURES = 252
     """
-    mfcc = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=n_mfcc)
-    mfcc_mean = np.mean(mfcc.T, axis=0)
-    mfcc_std  = np.std(mfcc.T,  axis=0)
-    return np.concatenate([mfcc_mean, mfcc_std]).astype(np.float32)
+    def _ms(x: np.ndarray) -> np.ndarray:
+        """Mean and std of any array, flattened to a 2-element float32 vector."""
+        flat = x.ravel().astype(np.float64)
+        return np.array([flat.mean(), flat.std()], dtype=np.float32)
+
+    # --- MFCCs and temporal derivatives ---
+    mfcc    = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=n_mfcc)  # (n_mfcc, T)
+    d_mfcc  = librosa.feature.delta(mfcc)                           # (n_mfcc, T)
+    dd_mfcc = librosa.feature.delta(mfcc, order=2)                  # (n_mfcc, T)
+
+    # --- Energy / spectral / prosodic features ---
+    rms       = librosa.feature.rms(y=audio)                        # (1, T)
+    zcr       = librosa.feature.zero_crossing_rate(y=audio)         # (1, T)
+    centroid  = librosa.feature.spectral_centroid(y=audio, sr=sr)   # (1, T)
+    bandwidth = librosa.feature.spectral_bandwidth(y=audio, sr=sr)  # (1, T)
+    rolloff   = librosa.feature.spectral_rolloff(y=audio, sr=sr)    # (1, T)
+
+    # --- Pitch (F0) — voiced frames only; zero-padded if none detected ---
+    try:
+        f0, voiced_flag, _ = librosa.pyin(
+            audio,
+            fmin=librosa.note_to_hz("C2"),   # ~65 Hz  (below normal speech)
+            fmax=librosa.note_to_hz("C7"),   # ~2093 Hz (above normal speech)
+            sr=sr,
+        )
+        f0_voiced = f0[voiced_flag] if (voiced_flag is not None and voiced_flag.any()) else np.zeros(1)
+    except Exception:
+        f0_voiced = np.zeros(1)
+
+    parts = [
+        np.mean(mfcc,    axis=1).astype(np.float32),   # 40
+        np.std(mfcc,     axis=1).astype(np.float32),   # 40
+        np.mean(d_mfcc,  axis=1).astype(np.float32),   # 40
+        np.std(d_mfcc,   axis=1).astype(np.float32),   # 40
+        np.mean(dd_mfcc, axis=1).astype(np.float32),   # 40
+        np.std(dd_mfcc,  axis=1).astype(np.float32),   # 40
+        _ms(rms),        # 2
+        _ms(zcr),        # 2
+        _ms(centroid),   # 2
+        _ms(bandwidth),  # 2
+        _ms(rolloff),    # 2
+        _ms(f0_voiced),  # 2
+    ]
+
+    vec = np.concatenate(parts).astype(np.float32)
+    assert len(vec) == N_FEATURES, f"Feature vector length mismatch: {len(vec)} != {N_FEATURES}"
+    return vec
+
+
+def get_feature_names(n_mfcc: int = N_MFCC) -> list[str]:
+    """
+    Return the ordered list of feature names that matches the extract_features output.
+
+    Use this to build a labelled DataFrame of features:
+        pd.DataFrame([extract_features(a, sr)], columns=get_feature_names())
+    """
+    names: list[str] = []
+    for prefix in ("mfcc", "delta_mfcc", "delta2_mfcc"):
+        names += [f"{prefix}_mean_{i}" for i in range(n_mfcc)]
+        names += [f"{prefix}_std_{i}"  for i in range(n_mfcc)]
+    for feat in ("rms", "zcr", "spectral_centroid",
+                 "spectral_bandwidth", "spectral_rolloff", "f0"):
+        names += [f"{feat}_mean", f"{feat}_std"]
+    assert len(names) == N_FEATURES
+    return names
 
 
 # --- Convenience aliases used across the project ----------------------------
