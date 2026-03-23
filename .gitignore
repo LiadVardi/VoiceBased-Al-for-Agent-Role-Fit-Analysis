@@ -1,23 +1,107 @@
+# =========================
+
 # Secrets
+
+# =========================
+
 .env
+.env.*
+
+# =========================
 
 # Environments
+
+# =========================
+
 .venv/
 env/
 venv/
 
+# =========================
+
 # Raw data and dataset folders
+
+# =========================
+
 archive/
 data/
+raw_audio/
+feature_cache/
 
-# Python/Jupyter junk
-__pycache__/
-.ipynb_checkpoints/
+# =========================
+
+# Audio & numpy data
+
+# =========================
+
+*.wav
+*.mp3
+*.flac
+*.npy
+*.npz
+
+# =========================
 
 # Data files (Large CSVs)
+
+# =========================
+
 *.csv
 
+# =========================
+
 # Model Artifacts (Large Binaries)
+
+# =========================
+
 *.keras
 *.h5
 *.pickle
+*.pkl
+
+# =========================
+
+# Python/Jupyter junk
+
+# =========================
+
+**pycache**/
+*.py[cod]
+.ipynb_checkpoints/
+
+# =========================
+
+# Logs & temp files
+
+# =========================
+
+*.log
+*.tmp
+
+# =========================
+
+# OS files
+
+# =========================
+
+.DS_Store
+Thumbs.db
+
+# =========================
+
+# IDEs
+
+# =========================
+
+.vscode/
+.idea/
+
+# =========================
+
+# Build / dist
+
+# =========================
+
+build/
+dist/
+*.egg-info/
