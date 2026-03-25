@@ -45,12 +45,18 @@ SHIFT_MS_RANGE     = (-200,  200)    # time shift in milliseconds (±200ms)
 PITCH_STEPS_RANGE  = (-2.0,  2.0)    # semitones (±2 = about one whole tone)
 
 
-ASSETS_DIR = Path("model_assets")
+# ── Directory Layout ──────────────────────────────────────────────────────────
+# Resolve project root dynamically so config.py can safely live in src/
+PROJECT_ROOT = Path(__file__).resolve().parent.parent if Path(__file__).parent.name == "src" else Path(__file__).resolve().parent
+
+DATA_DIR = PROJECT_ROOT / "data"
+RAW_DIR = DATA_DIR / "raw_audio"
+CLEAN_DIR = DATA_DIR / "clean_audio"
+CACHE_DIR = DATA_DIR / "feature_cache"
+CSV_DIR = DATA_DIR / "csv"
+
+ASSETS_DIR = PROJECT_ROOT / "model_assets"
 
 MODEL_PATH  = ASSETS_DIR / "final_emotion_model.keras"
 SCALER_PATH = ASSETS_DIR / "scaler.pickle"
 ENCODER_PATH = ASSETS_DIR / "encoder.pickle"
-
-
-RAW_DIR   = "raw_audio"
-CLEAN_DIR = "clean_audio"

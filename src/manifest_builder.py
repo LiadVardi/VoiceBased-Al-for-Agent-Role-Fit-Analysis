@@ -41,9 +41,10 @@ from pathlib import Path
 
 import pandas as pd
 
+from config import CSV_DIR
 from speaker_splitter import extract_speaker_id
 
-MANIFEST_PATH = Path("dataset_manifest.csv")
+# MANIFEST_PATH = Path("dataset_manifest.csv") # Removed as it will be derived from CSV_DIR
 
 # ── Augmentation type labels (must match what the notebook uses) ─────────────
 AUG_ORIGINAL = "original"
@@ -328,13 +329,21 @@ def add_augmented_rows(
 # 5. Save / load
 # ---------------------------------------------------------------------------
 
-def save_manifest(manifest: pd.DataFrame, path: Path = MANIFEST_PATH) -> None:
+def save_manifest(manifest: pd.DataFrame, output_path: Path | None = None, analysis: pd.Series | None = None) -> None:
     """Save the manifest to CSV."""
-    manifest.to_csv(path, index=False)
-    print(f"Manifest saved → {path}  ({len(manifest)} rows)")
+    if analysis is not None:
+        print("\n--- Manifest Analysis ---")
+        print(analysis.to_string())
+
+    if output_path is None:
+        CSV_DIR.mkdir(parents=True, exist_ok=True)
+        output_path = CSV_DIR / "manifest.csv"
+        
+    manifest.to_csv(output_path, index=False)
+    print(f"Manifest saved to: {output_path} ({len(manifest)} rows)")
 
 
-def load_manifest(path: Path = MANIFEST_PATH) -> pd.DataFrame:
+def load_manifest(path: Path = CSV_DIR / "manifest.csv") -> pd.DataFrame:
     """Load the manifest from CSV."""
     df = pd.read_csv(path)
     print(f"Manifest loaded from {path}  ({len(df)} rows)")

@@ -8,6 +8,10 @@ Run this AFTER 01_sync_data.py completes.
 from __future__ import annotations
 
 import os
+import sys
+# Ensure src/ siblings are importable regardless of working directory
+sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
+
 import time
 import warnings
 from pathlib import Path
@@ -18,7 +22,7 @@ import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
 
-from config import RAW_DIR, VAL_SIZE, TEST_SIZE, TARGET_SR, MONO
+from config import RAW_DIR, CACHE_DIR, CSV_DIR, VAL_SIZE, TEST_SIZE, TARGET_SR, MONO
 from speaker_splitter import add_speaker_column, speaker_three_way_split
 from manifest_builder import build_manifest, assign_splits, validate_manifest, save_manifest
 from audio_pipeline import extract_features_from_audio_array
@@ -27,7 +31,6 @@ from augmentation import get_augmentations, profile_summary
 warnings.filterwarnings("ignore")
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
-CACHE_DIR = Path("feature_cache")
 RAW_PATH = Path(RAW_DIR)
 
 
@@ -191,9 +194,11 @@ def main():
     
     # ── Final Save ──────────────────────────────────────────────
     print("\n5. Saving final CSVs...")
-    train_out.to_csv("train_features_ready_for_model.csv", index=False)
-    val_out.to_csv("val_features_ready_for_model.csv",     index=False)
-    test_out.to_csv("test_features_ready_for_model.csv",   index=False)
+    CSV_DIR.mkdir(parents=True, exist_ok=True)
+    
+    train_out.to_csv(CSV_DIR / "train_features_ready_for_model.csv", index=False)
+    val_out.to_csv(CSV_DIR / "val_features_ready_for_model.csv",     index=False)
+    test_out.to_csv(CSV_DIR / "test_features_ready_for_model.csv",   index=False)
     
     # Save the manifest 
     save_manifest(manifest)

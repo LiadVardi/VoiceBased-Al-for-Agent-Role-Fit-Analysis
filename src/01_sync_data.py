@@ -7,18 +7,23 @@ Features:
 """
 
 import os
+import sys
 import time
+# Ensure src/ siblings are importable regardless of working directory
+sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
+
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
 from azure.storage.blob import BlobServiceClient
 from tqdm.auto import tqdm
 
+from config import RAW_DIR
+
 # Load environment variables
 load_dotenv()
 
 CONTAINER_NAME = "wav-files"
-RAW_AUDIO_DIR = Path("raw_audio")
 PREFIXES = ["RAVDESS/", "CREMAD/", "TESS/", "SAVEE/"]
 
 
@@ -60,7 +65,7 @@ def main():
             if blob.name.endswith(".wav"):
                 # Clean windows paths if any snuck in
                 clean_name = blob.name.replace("\\", "/")
-                local_path = RAW_AUDIO_DIR / clean_name
+                local_path = RAW_DIR / clean_name
                 download_tasks.append((clean_name, local_path))
                 
     total_files = len(download_tasks)
