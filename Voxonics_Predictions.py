@@ -5,13 +5,14 @@ Predicts the emotion of a speaker from a .wav audio file.
 
 HOW TO RUN:
 -----------
-Single file:
-    .venv\Scripts\python.exe Voxonics_Predictions.py Voxonics_audio\your_file.wav
+🔹 Activate virtual environment (recommended):
+.venv\Scripts\activate
 
-All files in Voxonics_audio folder (PowerShell):
-    Get-ChildItem .\Voxonics_audio\*.wav | ForEach-Object {
-        .venv\Scripts\python.exe Voxonics_Predictions.py $_.FullName
-    }
+🔹 Run a single file:
+python Voxonics_Predictions.py Voxonics_audio\your_file.wav
+
+🔹 Run all files in Voxonics_audio folder:
+python Voxonics_Predictions.py Voxonics_audio
 """
 
 import os
@@ -53,16 +54,38 @@ def predict_emotions_report(audio_path):
 
 
 if __name__ == "__main__":
-    test_audio = sys.argv[1] if len(sys.argv) > 1 else "test_voice.wav"
+    input_path = sys.argv[1] if len(sys.argv) > 1 else "test_audio"
 
-    if os.path.exists(test_audio):
-        print(f"Analyzing: {test_audio}")
-        results = predict_emotions_report(test_audio)
+    if os.path.isdir(input_path):
+        print(f"Analyzing folder: {input_path}\n")
+
+        for file in os.listdir(input_path):
+            if file.endswith(".wav"):
+                path = os.path.join(input_path, file)
+
+                results = predict_emotions_report(path)
+                sorted_results = sorted(results.items(), key=lambda x: x[1], reverse=True)
+
+                print("=" * 40)
+                print(file)
+                print(f"Prediction: {sorted_results[0][0]} ({sorted_results[0][1]:.2f}%)")
+                print("-" * 40)
+
+                for emotion, confidence in sorted_results:
+                    bar = "█" * int(confidence / 5)
+                    print(f"{emotion.ljust(12)} | {confidence:6.2f}% {bar}")
+
+                print("=" * 40)
+
+    elif os.path.isfile(input_path):
+        print(f"Analyzing: {input_path}")
+        results = predict_emotions_report(input_path)
 
         print("=" * 40)
         for emotion, confidence in sorted(results.items(), key=lambda x: x[1], reverse=True):
             bar = "█" * int(confidence / 5)
             print(f"{emotion.ljust(12)} | {confidence:6.2f}% {bar}")
         print("=" * 40)
+
     else:
-        print(f"File not found: {test_audio}")
+        print(f"Path not found: {input_path}")
