@@ -134,11 +134,28 @@ def _parse_savee(parts: list[str], blob_path: str) -> dict:
     return {"emotion": emotion, "emotion_intensity": "unknown"}
 
 
+
+def _parse_asvp_esd(parts: list[str], blob_path: str) -> dict:
+    """
+    ASVP-ESD follows the same filename convention as the other datasets:
+    ASVP-ESD/<speaker>/ASVP-ESD-<speaker_id>-<Emotion>-<intensity>-<dup>.wav
+    Emotion is in position [2] (0-indexed) of the '-'-split filename.
+    """
+    filename = parts[-1]
+    fn_parts = filename.split("-")
+    emotion = fn_parts[2].lower() if len(fn_parts) > 2 else "unknown"
+    raw_intensity = fn_parts[3] if len(fn_parts) > 3 else "0"
+    intensity_map = {"1": "normal", "2": "strong"}
+    intensity = intensity_map.get(raw_intensity, "unknown")
+    return {"emotion": emotion, "emotion_intensity": intensity}
+
+
 _PARSERS = {
-    "RAVDESS": _parse_ravdess,
-    "CREMAD":  _parse_cremad,
-    "TESS":    _parse_tess,
-    "SAVEE":   _parse_savee,
+    "RAVDESS":   _parse_ravdess,
+    "CREMAD":    _parse_cremad,
+    "TESS":      _parse_tess,
+    "SAVEE":     _parse_savee,
+    "ASVP-ESD": _parse_asvp_esd,
 }
 
 

@@ -38,6 +38,9 @@ from config import (
     N_MFCC,
     N_FEATURES,
     EPSILON,
+    N_MELS,
+    HOP_LENGTH,
+    FIXED_FRAMES,
 )
 
 class AudioProcessingError(Exception):
@@ -306,3 +309,72 @@ def extract_features_from_file(file_path: PathLike) -> np.ndarray:
     audio, sr = load_audio(file_path)
     processed = preprocess_audio(audio, sr)
     return extract_features(processed, sr)
+
+
+# ---------------------------------------------------------------------------
+# 5. Log-Mel Spectrogram extraction (for 2D CNN)
+# ---------------------------------------------------------------------------
+
+def extract_spectrogram(audio: np.ndarray, sr: int) -> np.ndarray:
+    """
+    Compute a normalised log-mel spectrogram with a fixed time dimension.
+
+    Pipeline:
+      1. Mel-power spectrogram  → shape (N_MELS, T_actual)
+      2. Convert to dB          → human-perceptual scale
+      3. Crop or zero-pad T axis to exactly FIXED_FRAMES columns
+      4. Normalize to [0, 1]    → matches image CNN expectations
+
+    Returns
+    -------
+    np.ndarray, shape (N_MELS, FIXED_FRAMES), dtype float32
+    """
+    # Step 1 — Mel power spectrogram
+    mel = librosa.feature.melspectrogram(
+        y=audio, sr=sr,
+        n_mels=N_MELS,
+        hop_length=HOP_LENGTH,
+    )  # shape: (N_MELS, T_actual)
+
+    # Step 2 — Convert to dB (log scale)
+    mel_db = librosa.power_to_db(mel, ref=np.max)  # values in [-80, 0]
+
+    # Step 3 — Fix time axis to FIXED_FRAMES
+    n_frames = mel_db.shape[1]
+    if n_frames >= FIXED_FRAMES:
+        mel_db = mel_db[:, :FIXED_FRAMES]          # crop
+    else:
+        pad_width = FIXED_FRAMES - n_frames
+        mel_db = np.pad(mel_db, ((0, 0), (0, pad_width)), mode="constant")  # zero-pad
+
+    # Step 4 — Normalize to [0, 1]
+    mel_min, mel_max = mel_db.min(), mel_db.max()
+    if mel_max - mel_min > EPSILON:
+        mel_db = (mel_db - mel_min) / (mel_max - mel_min)
+
+    return mel_db.astype(np.float32)  # shape: (N_MELS, FIXED_FRAMES)
+
+
+def extract_spectrogram_from_audio_array(audio: np.ndarray, sr: int) -> np.ndarray:
+    """
+    Preprocess an already-loaded audio array and extract a log-mel spectrogram.
+
+    This is the function 02_extract_features.py calls for each sample.
+    Pipeline: preprocess_audio → extract_spectrogram.
+
+    Returns shape (N_MELS, FIXED_FRAMES) = (128, 128).
+    """
+    processed = preprocess_audio(audio, sr)
+    return extract_spectrogram(processed, sr)
+
+
+def extract_spectrogram_from_file(file_path: PathLike) -> np.ndarray:
+    """
+    One-shot: load from disk → preprocess → extract log-mel spectrogram.
+
+    This is the function voxonics_predictions.py calls for 2D CNN inference.
+    Returns shape (N_MELS, FIXED_FRAMES) = (128, 128).
+    """
+    audio, sr = load_audio(file_path)
+    processed = preprocess_audio(audio, sr)
+    return extract_spectrogram(processed, sr)

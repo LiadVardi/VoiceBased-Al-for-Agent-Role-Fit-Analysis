@@ -25,7 +25,7 @@ from tqdm.auto import tqdm
 from config import RAW_DIR, CACHE_DIR, CSV_DIR, VAL_SIZE, TEST_SIZE, TARGET_SR, MONO
 from speaker_splitter import add_speaker_column, speaker_three_way_split
 from manifest_builder import build_manifest, assign_splits, validate_manifest, save_manifest
-from audio_pipeline import extract_features_from_audio_array
+from audio_pipeline import extract_spectrogram_from_audio_array
 from augmentation import get_augmentations, profile_summary
 
 warnings.filterwarnings("ignore")
@@ -74,16 +74,13 @@ def _process_single_file_worker(path: str, emotion: str, split: str, augment: bo
     def process_and_cache(aug_type: str, data: np.ndarray, sr: int):
         cache_path = split_dir / f"{base_name}_{aug_type}.npy"
         
-        if cache_path.exists():
-            # CACHE HIT: super fast load
-            feat = np.load(cache_path)
-        else:
-            # CACHE MISS: compute heavy librosa features and save
-            feat = extract_features_from_audio_array(data, sr)
-            np.save(cache_path, feat)
+        if not cache_path.exists():
+            # CACHE MISS: compute spectrogram and save as (128, 128) array
+            spec = extract_spectrogram_from_audio_array(data, sr)
+            np.save(cache_path, spec)
             
         results.append({
-            "features": feat.tolist(),  # flatten so dataframe packs properly
+            "npy_path": str(cache_path),  # path to the (128, 128) .npy file
             "Labels": emotion,
             "source_original_path": path,
             "is_augmented": aug_type != "original",
@@ -148,19 +145,10 @@ def build_feature_dataframe_parallel(df: pd.DataFrame, split_name: str, augment:
     
     if len(all_rows) == 0:
         return pd.DataFrame()
-        
-    # Reconstruct the exact DataFrame layout your notebook expects
-    # all_rows[i]["features"] is a list of N_FEATURES floats
     
-    # Pluck the pure features into an array
-    X = [r.pop("features") for r in all_rows]
-    
-    # Create the DataFrame
-    features_df = pd.DataFrame(X)
-    
-    # Add metadata back on
-    meta_df = pd.DataFrame(all_rows)
-    final_df = pd.concat([features_df, meta_df], axis=1)
+    # Build a metadata-only DataFrame — feature arrays live in the .npy files
+    # The notebook will load them via: np.stack([np.load(p) for p in df["npy_path"]])
+    final_df = pd.DataFrame(all_rows)  # columns: npy_path, Labels, source_original_path, ...
     
     return final_df
 

@@ -22,8 +22,13 @@ PAD_MODE = "constant"    # if the audio is shorter than 2.5 seconds, it will be 
 
 
 N_MFCC = 40
-N_FEATURES = 6 * N_MFCC + 12   # 252
+N_FEATURES = 6 * N_MFCC + 12   # 252  (kept for 1D CNN compatibility)
 EPSILON = 1e-10 # a very small number to prevent division by zero
+
+# ── Log-Mel Spectrogram (2D CNN) ──────────────────────────────────────────────
+N_MELS       = 128   # number of mel frequency bins (height of the spectrogram image)
+HOP_LENGTH   = 512   # STFT hop — controls time resolution
+FIXED_FRAMES = 128   # all spectrograms are cropped/padded to this many time steps (width)
 
 # val = used for hyperparameter tuning / EarlyStopping.
 # test = LOCKED — only touched for the final evaluation report.

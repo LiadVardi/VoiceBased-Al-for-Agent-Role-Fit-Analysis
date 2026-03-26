@@ -24,7 +24,7 @@ from config import RAW_DIR
 load_dotenv()
 
 CONTAINER_NAME = "wav-files"
-PREFIXES = ["RAVDESS/", "CREMAD/", "TESS/", "SAVEE/"]
+PREFIXES = ["RAVDESS/", "CREMAD/", "TESS/", "SAVEE/", "ASVP-ESD/"]
 
 
 def download_blob(blob_service, blob_name: str, local_path: Path) -> tuple[bool, str]:
