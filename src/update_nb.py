@@ -1,6 +1,9 @@
 import json
+from pathlib import Path
 
-nb_path = r"c:\Users\orbit_24ts2or\OneDrive\שולחן העבודה\Emotion-Recognition\VoiceBasedAi.ipynb"
+project_root = Path(__file__).parent.parent
+nb_path = project_root / "VoiceBasedAi.ipynb"
+
 
 with open(nb_path, "r", encoding="utf-8") as f:
     nb = json.load(f)
@@ -10,7 +13,12 @@ for cell in nb.get("cells", []):
         source = cell.get("source", [])
         
         # 1. Update imports
-        if len(source) > 0 and "import io\n" in source[0] or "import os\n" in source[0] or "from azure.storage.blob" in "".join(source):
+        source_text = "".join(source)
+        if len(source) > 0 and (
+            "import io\n" in source[0]
+            or "import os\n" in source[0]
+            or "from azure.storage.blob" in source_text
+        ):
             sys_path_line = "import sys\nsys.path.append('src')\n"
             if sys_path_line not in source:
                 source.insert(0, sys_path_line)
