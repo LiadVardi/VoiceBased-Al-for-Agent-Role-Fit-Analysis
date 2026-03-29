@@ -50,6 +50,22 @@ SHIFT_MS_RANGE     = (-200,  200)    # time shift in milliseconds (±200ms)
 PITCH_STEPS_RANGE  = (-2.0,  2.0)    # semitones (±2 = about one whole tone)
 
 
+# ── CNN Architecture ──────────────────────────────────────────────────────────
+L2_REG             = 0.001  # L2 regularization factor applied to Conv2D kernels
+CNN_DROPOUT_CONV   = 0.4    # Dropout rate after conv blocks 2 and 3
+CNN_DROPOUT_DENSE  = 0.5    # Dropout rate in the dense head
+CNN_DENSE_UNITS    = 64     # Number of units in the Dense layer before softmax
+
+# ── Training ──────────────────────────────────────────────────────────────────
+LEARNING_RATE = 0.0005  # Initial Adam learning rate
+EPOCHS        = 75    # Maximum number of training epochs
+
+# ── Callbacks ─────────────────────────────────────────────────────────────────
+EARLY_STOPPING_PATIENCE = 10   # Epochs without improvement before stopping
+LR_REDUCE_PATIENCE      = 5    # Epochs without improvement before reducing LR
+LR_REDUCE_FACTOR        = 0.5  # Factor to multiply LR by on plateau
+LR_MIN                  = 1e-5 # Minimum allowed learning rate
+
 # ── Directory Layout ──────────────────────────────────────────────────────────
 # Resolve project root dynamically so config.py can safely live in src/
 PROJECT_ROOT = Path(__file__).resolve().parent.parent if Path(__file__).parent.name == "src" else Path(__file__).resolve().parent
