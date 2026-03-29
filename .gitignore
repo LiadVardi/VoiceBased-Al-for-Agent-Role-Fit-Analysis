@@ -50,17 +50,6 @@ feature_cache/
 
 # =========================
 
-# Model Artifacts (Large Binaries)
-
-# =========================
-
-*.keras
-*.h5
-*.pickle
-*.pkl
-
-# =========================
-
 # Python/Jupyter junk
 
 # =========================
