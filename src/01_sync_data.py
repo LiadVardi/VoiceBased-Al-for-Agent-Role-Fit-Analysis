@@ -24,7 +24,14 @@ from config import RAW_DIR
 load_dotenv()
 
 CONTAINER_NAME = "wav-files"
-PREFIXES = ["RAVDESS/", "CREMAD/", "TESS/", "SAVEE/", "ASVP-ESD/"]
+PREFIXES = ["RAVDESS/", "CREMAD/", "TESS/", "SAVEE/", "ASVP-ESD/", "MELD/"]
+
+# File extensions to download per dataset prefix
+# MELD needs its labels CSV in addition to the WAV audio files
+EXTRA_EXTENSIONS = {
+    "MELD/": (".wav", ".csv"),  # download both audio + labels CSV
+}
+DEFAULT_EXTENSIONS = (".wav",)
 
 
 def download_blob(blob_service, blob_name: str, local_path: Path) -> tuple[bool, str]:
@@ -61,8 +68,9 @@ def main():
     # 1. Gather all files we need to download
     for prefix in PREFIXES:
         blobs = container_client.list_blobs(name_starts_with=prefix)
+        extensions = EXTRA_EXTENSIONS.get(prefix, DEFAULT_EXTENSIONS)
         for blob in blobs:
-            if blob.name.endswith(".wav"):
+            if any(blob.name.endswith(ext) for ext in extensions):
                 # Clean windows paths if any snuck in
                 clean_name = blob.name.replace("\\", "/")
                 local_path = RAW_DIR / clean_name

@@ -49,6 +49,32 @@ STRETCH_RATE_RANGE = (0.80,  1.20)   # < 1 = slower,  > 1 = faster
 SHIFT_MS_RANGE     = (-200,  200)    # time shift in milliseconds (±200ms)
 PITCH_STEPS_RANGE  = (-2.0,  2.0)    # semitones (±2 = about one whole tone)
 
+# ── MELD Dataset ──────────────────────────────────────────────────────────────
+# Maps MELD's 7-class scheme to this project's 4 target emotions.
+MELD_EMOTION_MAP = {
+    "anger":   "angry",
+    "joy":     "happy",
+    "neutral": "neutral",
+    "sadness": "sad",
+    # "surprise" → dropped
+    # "fear"     → dropped
+    # "disgust"  → dropped
+}
+
+# ── Dataset Sample Weights ────────────────────────────────────────────────────
+# Controls how much each dataset's samples influence the loss during training.
+# Studio recordings (RAVDESS/CREMAD/TESS/SAVEE) = baseline weight 1.0
+# ASVP-ESD = slightly upweighted (more phonetic diversity)
+# MELD = highest weight (real conversational speech — closest to production)
+DATASET_WEIGHTS = {
+    "RAVDESS":  1.0,
+    "CREMAD":   1.0,
+    "TESS":     1.0,
+    "SAVEE":    1.0,
+    "ASVP-ESD": 2.0,
+    "MELD":     3.0,
+}
+
 
 # ── CNN Architecture ──────────────────────────────────────────────────────────
 L2_REG             = 0.001  # L2 regularization factor applied to Conv2D kernels

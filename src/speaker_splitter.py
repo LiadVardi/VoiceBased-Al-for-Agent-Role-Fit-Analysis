@@ -46,6 +46,16 @@ def _speaker_savee(parts: list[str]) -> str:
     return f"SAVEE_{filename[:2]}"
 
 
+def _speaker_meld(parts: list[str]) -> str:
+    """
+    MELD path format: MELD/{Speaker}_dia{Dialogue_ID}_utt{Utterance_ID}.wav
+    Example: MELD/Ross_dia1_utt3.wav  → speaker = 'Ross'
+    """
+    filename = parts[-1]          # e.g. Ross_dia1_utt3.wav
+    speaker = filename.split("_dia")[0]   # everything before '_dia'
+    return f"MELD_{speaker}"
+
+
 # 2. Dispatcher
 
 _PARSERS = {
@@ -53,6 +63,7 @@ _PARSERS = {
     "CREMAD":  _speaker_cremad,
     "TESS":    _speaker_tess,
     "SAVEE":   _speaker_savee,
+    "MELD":    _speaker_meld,
 }
 
 
@@ -181,8 +192,12 @@ if __name__ == "__main__":
         "SAVEE/DC/DC_h01.wav",
         "SAVEE/JE/JE_s01.wav",
         "SAVEE/KL/KL_n01.wav",
+        "MELD/Ross_dia1_utt0.wav",
+        "MELD/Rachel_dia1_utt1.wav",
+        "MELD/Monica_dia2_utt0.wav",
+        "MELD/Chandler_dia3_utt2.wav",
     ]
-    emotions = ["angry", "happy", "sad", "neutral"] * 4
+    emotions = ["angry", "happy", "sad", "neutral"] * 5
 
     df = pd.DataFrame({"Path": test_paths, "Emotions": emotions})
     df = add_speaker_column(df)

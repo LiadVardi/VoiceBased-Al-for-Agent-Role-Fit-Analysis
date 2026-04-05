@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
 
-from config import RAW_DIR, CACHE_DIR, CSV_DIR, VAL_SIZE, TEST_SIZE, TARGET_SR, MONO
+from config import RAW_DIR, CACHE_DIR, CSV_DIR, VAL_SIZE, TEST_SIZE, TARGET_SR, MONO, MELD_EMOTION_MAP
 from speaker_splitter import add_speaker_column, speaker_three_way_split
 from manifest_builder import build_manifest, assign_splits, validate_manifest, save_manifest
 from audio_pipeline import extract_spectrogram_from_audio_array
@@ -34,28 +34,74 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 RAW_PATH = Path(RAW_DIR)
 
 
+def _get_meld_dataframe(raw_dir: Path) -> pd.DataFrame:
+    """
+    Load MELD emotion labels from the local meld_labels.csv downloaded by 01_sync_data.py.
+    MELD filenames do NOT embed the emotion, so we must read it from the CSV.
+    """
+    meld_dir = raw_dir / "MELD"
+    if not meld_dir.exists():
+        return pd.DataFrame(columns=["Path", "Emotions"])
+
+    csv_path = meld_dir / "meld_labels.csv"
+    if not csv_path.exists():
+        print(f"  [WARN] meld_labels.csv not found at {csv_path} — MELD will be skipped.")
+        return pd.DataFrame(columns=["Path", "Emotions"])
+
+    meld_df = pd.read_csv(csv_path)
+    meld_df = meld_df[meld_df["Emotion"].isin(MELD_EMOTION_MAP)].copy()
+    meld_df["Emotions"] = meld_df["Emotion"].map(MELD_EMOTION_MAP)
+
+    meld_df["Path"] = meld_df.apply(
+        lambda row: str(
+            meld_dir
+            / f"{str(row['Speaker']).strip().replace(' ', '_')}"
+              f"_dia{row['Dialogue_ID']}_utt{row['Utterance_ID']}.wav"
+        ),
+        axis=1,
+    )
+
+    # Only keep files that were actually downloaded
+    meld_df = meld_df[meld_df["Path"].apply(lambda p: Path(p).exists())].copy()
+    print(f"  MELD: {len(meld_df)} utterances found locally")
+    return meld_df[["Path", "Emotions"]].reset_index(drop=True)
+
+
+def _extract_dataset_source(local_path: str) -> str:
+    """Return the dataset folder name (e.g. 'RAVDESS', 'MELD') from a local path."""
+    try:
+        rel = Path(local_path).relative_to(RAW_PATH)
+        return rel.parts[0] if rel.parts else "UNKNOWN"
+    except ValueError:
+        return "UNKNOWN"
+
+
 def _get_local_dataframe(raw_dir: Path) -> pd.DataFrame:
-    """Replicates exactly what get_df_from_blob_dataset did, but locally."""
-    file_paths = []
-    emotions = []
-    
+    """Build the master DataFrame from all locally downloaded datasets."""
+    file_paths, emotions = [], []
+
     for wav_file in raw_dir.rglob("*.wav"):
+        # MELD WAV filenames do NOT contain the emotion — handled separately below
+        try:
+            dataset_name = wav_file.relative_to(raw_dir).parts[0].upper()
+        except (ValueError, IndexError):
+            dataset_name = ""
+
+        if dataset_name == "MELD":
+            continue   # skip, handled by _get_meld_dataframe
+
         filename = wav_file.name
-        parts = filename.split("-")
-        
-        # the emotion is the 3rd part of the ravdess string format
-        if len(parts) >= 3:
-            emotion = parts[2].lower()
-        else:
-            emotion = "unknown"
-            
+        parts    = filename.split("-")
+        emotion  = parts[2].lower() if len(parts) >= 3 else "unknown"
+
         file_paths.append(str(wav_file))
         emotions.append(emotion)
-        
-    return pd.DataFrame({
-        "Path": file_paths,
-        "Emotions": emotions
-    })
+
+    non_meld_df = pd.DataFrame({"Path": file_paths, "Emotions": emotions})
+    meld_df     = _get_meld_dataframe(raw_dir)
+
+    combined = pd.concat([non_meld_df, meld_df], ignore_index=True)
+    return combined
 
 
 def _process_single_file_worker(path: str, emotion: str, split: str, augment: bool) -> list[dict]:
@@ -78,11 +124,12 @@ def _process_single_file_worker(path: str, emotion: str, split: str, augment: bo
             # CACHE MISS: compute spectrogram and save as (128, 128) array
             spec = extract_spectrogram_from_audio_array(data, sr)
             np.save(cache_path, spec)
-            
+
         results.append({
-            "npy_path": str(cache_path),  # path to the (128, 128) .npy file
+            "npy_path": str(cache_path),
             "Labels": emotion,
             "source_original_path": path,
+            "dataset_source": _extract_dataset_source(path),  # ← used for sample weighting
             "is_augmented": aug_type != "original",
             "augmentation_type": aug_type,
             "split": split
