@@ -67,13 +67,14 @@ MELD_EMOTION_MAP = {
 # ASVP-ESD = slightly upweighted (more phonetic diversity)
 # MELD = highest weight (real conversational speech — closest to production)
 DATASET_WEIGHTS = {
-    "RAVDESS":  1.0,
+    "RAVDESS":  1.5,   
     "CREMAD":   1.0,
     "TESS":     1.0,
     "SAVEE":    1.0,
     "ASVP-ESD": 2.0,
-    "MELD":     3.0,
+    "MELD":     2.5, 
 }
+
 
 
 # ── CNN Architecture ──────────────────────────────────────────────────────────
@@ -107,3 +108,7 @@ ASSETS_DIR = PROJECT_ROOT / "model_assets"
 MODEL_PATH  = ASSETS_DIR / "final_emotion_model.keras"
 SCALER_PATH = ASSETS_DIR / "scaler.pickle"
 ENCODER_PATH = ASSETS_DIR / "encoder.pickle"
+
+# Local checkpoint path OUTSIDE OneDrive — avoids sync delay during training
+CHECKPOINT_DIR = Path("C:/model_checkpoints")
+CHECKPOINT_PATH = CHECKPOINT_DIR / "best_emotion_model.keras"
