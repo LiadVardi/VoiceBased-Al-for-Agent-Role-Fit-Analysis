@@ -22,7 +22,9 @@ import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
 
-from config import RAW_DIR, CACHE_DIR, CSV_DIR, VAL_SIZE, TEST_SIZE, TARGET_SR, MONO, MELD_EMOTION_MAP
+from config import (RAW_DIR, CACHE_DIR, CSV_DIR, VAL_SIZE, TEST_SIZE,
+                   TARGET_SR, TARGET_DURATION_SEC, MONO, MELD_EMOTION_MAP,
+                   SLIDING_WINDOW_ENABLED, SLIDING_WINDOW_STRIDE_SEC)
 from speaker_splitter import add_speaker_column, speaker_three_way_split
 from manifest_builder import build_manifest, assign_splits, validate_manifest, save_manifest
 from audio_pipeline import extract_spectrogram_from_audio_array
@@ -67,6 +69,35 @@ def _get_meld_dataframe(raw_dir: Path) -> pd.DataFrame:
     return meld_df[["Path", "Emotions"]].reset_index(drop=True)
 
 
+def _get_voxonics_dataframe(raw_dir: Path) -> pd.DataFrame:
+    """
+    Load Voxonics labeled telephonic clips from a subfolder-per-emotion structure:
+        raw_dir/VOXONICS/{emotion}/*.wav  (or .mp3)
+    The emotion is taken directly from the sub-folder name.
+    """
+    voxonics_dir = raw_dir / "VOXONICS"
+    if not voxonics_dir.exists():
+        return pd.DataFrame(columns=["Path", "Emotions"])
+
+    TARGET_EMOTIONS = {"angry", "happy", "neutral", "sad"}
+    SUPPORTED_EXT   = {".wav", ".mp3", ".m4a", ".flac"}
+    rows = []
+
+    for emotion_dir in sorted(voxonics_dir.iterdir()):
+        if not emotion_dir.is_dir():
+            continue
+        emotion = emotion_dir.name.lower()
+        if emotion not in TARGET_EMOTIONS:
+            continue
+        for audio_file in emotion_dir.iterdir():
+            if audio_file.suffix.lower() in SUPPORTED_EXT:
+                rows.append({"Path": str(audio_file), "Emotions": emotion})
+
+    df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=["Path", "Emotions"])
+    print(f"  VOXONICS: {len(df)} clips found locally")
+    return df.reset_index(drop=True)
+
+
 def _extract_dataset_source(local_path: str) -> str:
     """Return the dataset folder name (e.g. 'RAVDESS', 'MELD') from a local path."""
     try:
@@ -81,14 +112,14 @@ def _get_local_dataframe(raw_dir: Path) -> pd.DataFrame:
     file_paths, emotions = [], []
 
     for wav_file in raw_dir.rglob("*.wav"):
-        # MELD WAV filenames do NOT contain the emotion — handled separately below
+        # MELD and VOXONICS are handled by their own readers below
         try:
             dataset_name = wav_file.relative_to(raw_dir).parts[0].upper()
         except (ValueError, IndexError):
             dataset_name = ""
 
-        if dataset_name == "MELD":
-            continue   # skip, handled by _get_meld_dataframe
+        if dataset_name in ("MELD", "VOXONICS"):
+            continue   # handled separately
 
         filename = wav_file.name
         parts    = filename.split("-")
@@ -97,10 +128,11 @@ def _get_local_dataframe(raw_dir: Path) -> pd.DataFrame:
         file_paths.append(str(wav_file))
         emotions.append(emotion)
 
-    non_meld_df = pd.DataFrame({"Path": file_paths, "Emotions": emotions})
-    meld_df     = _get_meld_dataframe(raw_dir)
+    non_special_df = pd.DataFrame({"Path": file_paths, "Emotions": emotions})
+    meld_df        = _get_meld_dataframe(raw_dir)
+    voxonics_df    = _get_voxonics_dataframe(raw_dir)
 
-    combined = pd.concat([non_meld_df, meld_df], ignore_index=True)
+    combined = pd.concat([non_special_df, meld_df, voxonics_df], ignore_index=True)
     return combined
 
 
@@ -138,16 +170,34 @@ def _process_single_file_worker(path: str, emotion: str, split: str, augment: bo
     # We only load the original audio once per file!
     try:
         audio, sr = librosa.load(str(path_obj), sr=TARGET_SR, mono=MONO)
-    except Exception as e:
-        return [] # Return empty on load error
+    except Exception:
+        return []
 
-    # 1. Original 
-    try:
-        process_and_cache("original", audio, sr)
-    except Exception as e:
-        return [] # If original fails, skip entirely
-        
-    # 2. Augmentations (only for train)
+    # ── 1. Original audio — sliding window or single crop ──────────────────────
+    duration_sec = len(audio) / sr
+
+    if SLIDING_WINDOW_ENABLED and duration_sec > TARGET_DURATION_SEC:
+        # Clip is long enough to extract multiple overlapping windows
+        window_samples = int(TARGET_DURATION_SEC * sr)
+        stride_samples = int(SLIDING_WINDOW_STRIDE_SEC * sr)
+        start = 0
+        win_idx = 0
+        while start + window_samples <= len(audio):
+            window = audio[start : start + window_samples]
+            try:
+                process_and_cache(f"window_{win_idx}", window, sr)
+            except Exception:
+                pass
+            start   += stride_samples
+            win_idx += 1
+    else:
+        # Short clip — single crop/pad (original behaviour)
+        try:
+            process_and_cache("original", audio, sr)
+        except Exception:
+            return []
+
+    # ── 2. Augmentations (training set only, applied to full audio) ────────────
     if augment:
         AUGMENTATIONS = get_augmentations()
         for aug_name, aug_fn in AUGMENTATIONS.items():
@@ -155,8 +205,8 @@ def _process_single_file_worker(path: str, emotion: str, split: str, augment: bo
                 aug_audio = aug_fn(audio, sr=sr)
                 process_and_cache(aug_name, aug_audio, sr)
             except Exception:
-                pass  # silently ignore failed augments (like pitch blowing up)
-                
+                pass
+
     return results
 
 

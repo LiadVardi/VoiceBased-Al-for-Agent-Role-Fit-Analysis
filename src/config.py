@@ -67,12 +67,13 @@ MELD_EMOTION_MAP = {
 # ASVP-ESD = slightly upweighted (more phonetic diversity)
 # MELD = highest weight (real conversational speech — closest to production)
 DATASET_WEIGHTS = {
-    "RAVDESS":  1.5,   
-    "CREMAD":   1.0,
-    "TESS":     1.0,
-    "SAVEE":    1.0,
-    "ASVP-ESD": 2.0,
-    "MELD":     2.5, 
+    "RAVDESS":   1.5,
+    "CREMAD":    1.0,
+    "TESS":      1.0,
+    "SAVEE":     1.0,
+    "ASVP-ESD":  2.0,
+    "MELD":      2.5,
+    "VOXONICS":  5.0,  # ← exact production domain (telephonic, real calls)
 }
 
 
@@ -93,6 +94,13 @@ LR_REDUCE_PATIENCE      = 5    # Epochs without improvement before reducing LR
 LR_REDUCE_FACTOR        = 0.5  # Factor to multiply LR by on plateau
 LR_MIN                  = 1e-5 # Minimum allowed learning rate
 
+# ── Sliding Window (maximises training samples from longer clips) ───────────────
+# When enabled, clips longer than TARGET_DURATION_SEC are sliced into
+# overlapping windows instead of cropping to just the first 2.5 seconds.
+# Every window gets the same emotion label as the parent clip.
+SLIDING_WINDOW_ENABLED    = True   # set False to revert to single-crop
+SLIDING_WINDOW_STRIDE_SEC = 1.25   # 50% overlap: new window every 1.25 s
+
 # ── Directory Layout ──────────────────────────────────────────────────────────
 # Resolve project root dynamically so config.py can safely live in src/
 PROJECT_ROOT = Path(__file__).resolve().parent.parent if Path(__file__).parent.name == "src" else Path(__file__).resolve().parent
@@ -112,3 +120,32 @@ ENCODER_PATH = ASSETS_DIR / "encoder.pickle"
 # Local checkpoint path OUTSIDE OneDrive — avoids sync delay during training
 CHECKPOINT_DIR = Path("C:/model_checkpoints")
 CHECKPOINT_PATH = CHECKPOINT_DIR / "best_emotion_model.keras"
+
+# ── Fine-Tuning (Option B — domain adaptation on telephonic calls) ────────────
+# Freeze the first N layers (CNN blocks 1-3, which extract general features).
+# Only the last CNN block + dense head are retrained on Voxonics data.
+#
+# Layer map for the 4-block 2D CNN:
+#   Block 1 : layers  0– 2  (Conv32,  BN, MaxPool)
+#   Block 2 : layers  3– 6  (Conv64,  BN, MaxPool, Dropout)
+#   Block 3 : layers  7–10  (Conv128, BN, MaxPool, Dropout)
+#   Block 4 : layers 11–13  (Conv128, BN, GlobalAvgPool)  ← trainable
+#   Dense   : layers 14–16  (Dense64, Dropout, Softmax)   ← trainable
+FINETUNE_N_FREEZE_LAYERS  = 11      # freeze blocks 1-3; train block 4 + head
+FINETUNE_LR               = 1e-4    # much lower than original 5e-4
+FINETUNE_EPOCHS           = 30
+FINETUNE_PATIENCE         = 7       # early-stopping patience
+FINETUNE_VAL_SIZE         = 0.20    # 20% of Voxonics clips → validation
+FINETUNE_AUGMENT_PROFILE  = "light" # lighter augmentation for small dataset
+
+# Where to read labeled telephonic clips from (one sub-folder per emotion):
+#   Voxonics_labeled/
+#       angry/   ← your .wav / .mp3 clips
+#       happy/
+#       neutral/
+#       sad/
+VOXONICS_LABELED_DIR = "data/raw_audio/VOXONICS"
+
+# Saved fine-tuned model (separate from base model)
+FINETUNE_CHECKPOINT_PATH  = CHECKPOINT_DIR / "finetuned_emotion_model.keras"
+FINETUNED_MODEL_PATH      = ASSETS_DIR / "finetuned_emotion_model.keras"
