@@ -1,15 +1,15 @@
 """
 Voxonics Emotion Predictions
 ==============================
-Predicts the emotion of a speaker from an audio file (.wav or .mp3).
+Predicts the emotion of a speaker from a .wav audio file.
 
 HOW TO RUN:
 -----------
 Single file:
-    .venv\Scripts\python.exe Voxonics_Predictions.py Voxonics_audio\your_file.mp3
+    .venv\Scripts\python.exe Voxonics_Predictions.py Voxonics_audio\your_file.wav
 
 All files in Voxonics_audio folder (PowerShell):
-    Get-ChildItem .\Voxonics_audio\* -Include *.wav,*.mp3 | ForEach-Object {
+    Get-ChildItem .\Voxonics_audio\*.wav | ForEach-Object {
         .venv\Scripts\python.exe Voxonics_Predictions.py $_.FullName
     }
 """
@@ -24,7 +24,7 @@ import numpy as np
 from tensorflow.keras.models import load_model
 
 from audio_pipeline import extract_spectrogram_from_file
-from config import FINETUNED_MODEL_PATH as MODEL_PATH, ENCODER_PATH
+from config import MODEL_PATH, ENCODER_PATH
 
 warnings.filterwarnings("ignore")
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
