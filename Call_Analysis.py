@@ -94,7 +94,6 @@ def analyze_call(audio_path: str, stride_sec: float):
         print("No speech detected in the file.")
         return
 
-    # ---- Smoothing ----
     emotions_raw = [e for _, _, e, _ in timeline]
     emotions_smoothed = list(emotions_raw)
 
@@ -111,7 +110,6 @@ def analyze_call(audio_path: str, stride_sec: float):
         for i, (s, e, _, p) in enumerate(timeline)
     ]
 
-    # ---- Timeline ----
     print(f"{'TIME':<14}  {'EMOTION':<10}  CONFIDENCE")
     print("-" * 48)
 
@@ -123,7 +121,6 @@ def analyze_call(audio_path: str, stride_sec: float):
     if any(e != r for e, r in zip([e for _, _, e, _ in timeline], emotions_raw)):
         print("  (* = corrected by smoothing)")
 
-    # ---- Summary ----
     print("\n" + "-" * 48)
     print("SUMMARY")
     print("-" * 48)

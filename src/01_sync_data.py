@@ -9,7 +9,6 @@ Features:
 import os
 import sys
 import time
-# Ensure src/ siblings are importable regardless of working directory
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
 
 from pathlib import Path
@@ -20,27 +19,24 @@ from tqdm.auto import tqdm
 
 from config import RAW_DIR
 
-# Load environment variables
 load_dotenv()
 
 CONTAINER_NAME = "wav-files"
-PREFIXES = ["RAVDESS/", "CREMAD/", "TESS/", "SAVEE/", "ASVP-ESD/", "MELD/"]
+PREFIXES = ["RAVDESS/", "CREMAD/", "TESS/", "SAVEE/", "ASVP-ESD/", "MELD/", "VOXONICS/"]
 
-# File extensions to download per dataset prefix
-# MELD needs its labels CSV in addition to the WAV audio files
+
 EXTRA_EXTENSIONS = {
-    "MELD/": (".wav", ".csv"),  # download both audio + labels CSV
+    "MELD/":     (".wav", ".csv"),          
+    "VOXONICS/": (".wav", ".mp3", ".m4a"), 
 }
 DEFAULT_EXTENSIONS = (".wav",)
 
 
 def download_blob(blob_service, blob_name: str, local_path: Path) -> tuple[bool, str]:
-    """Download a single blob to the local file system if it doesn't exist."""
     try:
         if local_path.exists():
-            return False, ""  # skipped
+            return False, ""  
         
-        # Ensure parent directories exist
         local_path.parent.mkdir(parents=True, exist_ok=True)
         
         blob_client = blob_service.get_blob_client(container=CONTAINER_NAME, blob=blob_name)
@@ -48,7 +44,7 @@ def download_blob(blob_service, blob_name: str, local_path: Path) -> tuple[bool,
             download_stream = blob_client.download_blob()
             f.write(download_stream.readall())
             
-        return True, ""  # downloaded
+        return True, ""  
     except Exception as e:
         return False, f"Failed {blob_name}: {e}"
 
@@ -65,13 +61,11 @@ def main():
     print("Listing remote blobs...")
     download_tasks = []
     
-    # 1. Gather all files we need to download
     for prefix in PREFIXES:
         blobs = container_client.list_blobs(name_starts_with=prefix)
         extensions = EXTRA_EXTENSIONS.get(prefix, DEFAULT_EXTENSIONS)
         for blob in blobs:
             if any(blob.name.endswith(ext) for ext in extensions):
-                # Clean windows paths if any snuck in
                 clean_name = blob.name.replace("\\", "/")
                 local_path = RAW_DIR / clean_name
                 download_tasks.append((clean_name, local_path))
@@ -89,9 +83,8 @@ def main():
 
     t0 = time.time()
     
-    # 2. ThreadPool download
     
-    with ThreadPoolExecutor(max_workers=20) as executor: # download 20 files at same time
+    with ThreadPoolExecutor(max_workers=20) as executor: 
         futures = {
             executor.submit(download_blob, blob_service, blob_name, local_path): blob_name
             for blob_name, local_path in download_tasks
@@ -108,7 +101,6 @@ def main():
 
     elapsed = (time.time() - t0) / 60
     
-    # 3. Summary
     print("\n" + "="*40)
     print(" Sync Complete")
     print("="*40)

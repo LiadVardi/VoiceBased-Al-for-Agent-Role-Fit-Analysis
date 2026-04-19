@@ -44,7 +44,7 @@ def predict_emotions_report(audio_path):
     model, encoder = load_engine()
 
     spec = extract_spectrogram_from_file(audio_path)
-    features_cnn = spec[np.newaxis, ..., np.newaxis]  # (1, 128, 128, 1)
+    features_cnn = spec[np.newaxis, ..., np.newaxis]  
 
     predictions = model.predict(features_cnn, verbose=0)[0]
     emotion_labels = encoder.categories_[0]

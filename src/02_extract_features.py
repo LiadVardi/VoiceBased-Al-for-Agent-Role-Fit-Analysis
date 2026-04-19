@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import os
 import sys
-# Ensure src/ siblings are importable regardless of working directory
 sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
 
 import time
@@ -37,10 +36,6 @@ RAW_PATH = Path(RAW_DIR)
 
 
 def _get_meld_dataframe(raw_dir: Path) -> pd.DataFrame:
-    """
-    Load MELD emotion labels from the local meld_labels.csv downloaded by 01_sync_data.py.
-    MELD filenames do NOT embed the emotion, so we must read it from the CSV.
-    """
     meld_dir = raw_dir / "MELD"
     if not meld_dir.exists():
         return pd.DataFrame(columns=["Path", "Emotions"])
@@ -63,18 +58,12 @@ def _get_meld_dataframe(raw_dir: Path) -> pd.DataFrame:
         axis=1,
     )
 
-    # Only keep files that were actually downloaded
     meld_df = meld_df[meld_df["Path"].apply(lambda p: Path(p).exists())].copy()
     print(f"  MELD: {len(meld_df)} utterances found locally")
     return meld_df[["Path", "Emotions"]].reset_index(drop=True)
 
 
 def _get_voxonics_dataframe(raw_dir: Path) -> pd.DataFrame:
-    """
-    Load Voxonics labeled telephonic clips from a subfolder-per-emotion structure:
-        raw_dir/VOXONICS/{emotion}/*.wav  (or .mp3)
-    The emotion is taken directly from the sub-folder name.
-    """
     voxonics_dir = raw_dir / "VOXONICS"
     if not voxonics_dir.exists():
         return pd.DataFrame(columns=["Path", "Emotions"])
@@ -99,7 +88,6 @@ def _get_voxonics_dataframe(raw_dir: Path) -> pd.DataFrame:
 
 
 def _extract_dataset_source(local_path: str) -> str:
-    """Return the dataset folder name (e.g. 'RAVDESS', 'MELD') from a local path."""
     try:
         rel = Path(local_path).relative_to(RAW_PATH)
         return rel.parts[0] if rel.parts else "UNKNOWN"
@@ -108,18 +96,16 @@ def _extract_dataset_source(local_path: str) -> str:
 
 
 def _get_local_dataframe(raw_dir: Path) -> pd.DataFrame:
-    """Build the master DataFrame from all locally downloaded datasets."""
     file_paths, emotions = [], []
 
     for wav_file in raw_dir.rglob("*.wav"):
-        # MELD and VOXONICS are handled by their own readers below
         try:
             dataset_name = wav_file.relative_to(raw_dir).parts[0].upper()
         except (ValueError, IndexError):
             dataset_name = ""
 
         if dataset_name in ("MELD", "VOXONICS"):
-            continue   # handled separately
+            continue
 
         filename = wav_file.name
         parts    = filename.split("-")
@@ -137,23 +123,18 @@ def _get_local_dataframe(raw_dir: Path) -> pd.DataFrame:
 
 
 def _process_single_file_worker(path: str, emotion: str, split: str, augment: bool) -> list[dict]:
-    """
-    Global top-level function that ProcessPoolExecutor can serialize.
-    Reads local audio, checks the .npy cache, computes features, returns dicts.
-    """
-    path_obj = Path(path)
+    path_obj  = Path(path)
     base_name = path_obj.stem
-    
+
     split_dir = CACHE_DIR / split
     split_dir.mkdir(parents=True, exist_ok=True)
-    
+
     results = []
-    
+
     def process_and_cache(aug_type: str, data: np.ndarray, sr: int):
         cache_path = split_dir / f"{base_name}_{aug_type}.npy"
-        
+
         if not cache_path.exists():
-            # CACHE MISS: compute spectrogram and save as (128, 128) array
             spec = extract_spectrogram_from_audio_array(data, sr)
             np.save(cache_path, spec)
 
@@ -161,26 +142,23 @@ def _process_single_file_worker(path: str, emotion: str, split: str, augment: bo
             "npy_path": str(cache_path),
             "Labels": emotion,
             "source_original_path": path,
-            "dataset_source": _extract_dataset_source(path),  # ← used for sample weighting
+            "dataset_source": _extract_dataset_source(path),
             "is_augmented": aug_type != "original",
             "augmentation_type": aug_type,
             "split": split
         })
-    
-    # We only load the original audio once per file!
+
     try:
         audio, sr = librosa.load(str(path_obj), sr=TARGET_SR, mono=MONO)
     except Exception:
         return []
 
-    # ── 1. Original audio — sliding window or single crop ──────────────────────
     duration_sec = len(audio) / sr
 
     if SLIDING_WINDOW_ENABLED and duration_sec > TARGET_DURATION_SEC:
-        # Clip is long enough to extract multiple overlapping windows
         window_samples = int(TARGET_DURATION_SEC * sr)
         stride_samples = int(SLIDING_WINDOW_STRIDE_SEC * sr)
-        start = 0
+        start   = 0
         win_idx = 0
         while start + window_samples <= len(audio):
             window = audio[start : start + window_samples]
@@ -191,13 +169,11 @@ def _process_single_file_worker(path: str, emotion: str, split: str, augment: bo
             start   += stride_samples
             win_idx += 1
     else:
-        # Short clip — single crop/pad (original behaviour)
         try:
             process_and_cache("original", audio, sr)
         except Exception:
             return []
 
-    # ── 2. Augmentations (training set only, applied to full audio) ────────────
     if augment:
         AUGMENTATIONS = get_augmentations()
         for aug_name, aug_fn in AUGMENTATIONS.items():
@@ -211,83 +187,76 @@ def _process_single_file_worker(path: str, emotion: str, split: str, augment: bo
 
 
 def build_feature_dataframe_parallel(df: pd.DataFrame, split_name: str, augment: bool) -> pd.DataFrame:
-    """Distributes work across all CPUs."""
     total_files = len(df)
     print(f"\nStarting {split_name}: {total_files} files (augment={augment})")
     t0 = time.time()
-    
+
     all_rows = []
-    
-    # ProcessPoolExecutor uses all available CPU cores perfectly!
+
     with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
         futures = []
         for _, row in df.iterrows():
             futures.append(
                 executor.submit(
-                    _process_single_file_worker, 
-                    str(row["Path"]), 
-                    str(row["Emotions"]), 
-                    split_name, 
+                    _process_single_file_worker,
+                    str(row["Path"]),
+                    str(row["Emotions"]),
+                    split_name,
                     augment
                 )
             )
-            
+
         for future in tqdm(as_completed(futures), total=total_files, desc=f"Processing {split_name}"):
             res = future.result()
             if res:
                 all_rows.extend(res)
-                
+
     elapsed_min = (time.time() - t0) / 60
     print(f"  Finished {split_name} in {elapsed_min:.1f} min ({len(all_rows)} total samples extracted)")
-    
+
     if len(all_rows) == 0:
         return pd.DataFrame()
-    
-    # Build a metadata-only DataFrame — feature arrays live in the .npy files
-    # The notebook will load them via: np.stack([np.load(p) for p in df["npy_path"]])
-    final_df = pd.DataFrame(all_rows)  # columns: npy_path, Labels, source_original_path, ...
-    
+
+    final_df = pd.DataFrame(all_rows)
     return final_df
 
 
 def main():
     profile_summary()
-    
+
     if not RAW_PATH.exists() or len(list(RAW_PATH.iterdir())) == 0:
         print(f"Error: {RAW_PATH} is empty! Did you run 01_sync_data.py?")
         return
-        
+
     print("\n1. Building local DataFrame...")
     data_path = _get_local_dataframe(RAW_PATH)
     print(f"  Found {len(data_path)} original files locally.")
-    
+
     print("\n2. Speaker-aware 3-way split...")
     data_path = add_speaker_column(data_path)
     train_df, val_df, test_df = speaker_three_way_split(
         data_path, val_size=VAL_SIZE, test_size=TEST_SIZE, random_state=42
     )
-    
+
     print("\n3. Building Manifest...")
     manifest = build_manifest(data_path)
     manifest = assign_splits(manifest, train_df, test_df, val_df=val_df)
-    
-    # ── CPU-Crushing Multiprocessing ────────────────────────────
+
     print("\n4. Extracting Features (Multiprocessing)...")
     train_out = build_feature_dataframe_parallel(train_df, "train", augment=True)
     val_out   = build_feature_dataframe_parallel(val_df,   "val",   augment=False)
     test_out  = build_feature_dataframe_parallel(test_df,  "test",  augment=False)
-    
-    # ── Final Save ──────────────────────────────────────────────
+
     print("\n5. Saving final CSVs...")
     CSV_DIR.mkdir(parents=True, exist_ok=True)
-    
+
     train_out.to_csv(CSV_DIR / "train_features_ready_for_model.csv", index=False)
     val_out.to_csv(CSV_DIR / "val_features_ready_for_model.csv",     index=False)
     test_out.to_csv(CSV_DIR / "test_features_ready_for_model.csv",   index=False)
-    
-    # Save the manifest 
+
     save_manifest(manifest)
     print("\nPipeline Complete! You can now run your Notebook's Data Prep cell.")
+
 
 if __name__ == "__main__":
     main()

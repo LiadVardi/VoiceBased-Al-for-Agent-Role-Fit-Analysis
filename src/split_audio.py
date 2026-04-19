@@ -32,17 +32,13 @@ import librosa
 import soundfile as sf
 
 SUPPORTED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".flac", ".ogg"}
-DEFAULT_SR          = 22050   # matches config.TARGET_SR
-DEFAULT_SEGMENT_SEC = 4.0     # cut every 4 seconds
-MIN_SEGMENT_SEC     = 1.0     # discard leftover shorter than this
+DEFAULT_SR          = 22050
+DEFAULT_SEGMENT_SEC = 4.0
+MIN_SEGMENT_SEC     = 1.0
 
 
 def split_file(audio_path: Path, output_dir: Path,
                segment_sec: float, sr: int) -> int:
-    """
-    Split a single audio file into fixed-length segments.
-    Returns the number of segments saved.
-    """
     try:
         audio, _ = librosa.load(str(audio_path), sr=sr, mono=True)
     except Exception as exc:
@@ -62,7 +58,7 @@ def split_file(audio_path: Path, output_dir: Path,
         segment = audio[start:end]
 
         if len(segment) < min_samples:
-            break   # leftover too short — discard
+            break
 
         out_name = f"{audio_path.stem}_part{part_no}.wav"
         out_path = output_dir / out_name
