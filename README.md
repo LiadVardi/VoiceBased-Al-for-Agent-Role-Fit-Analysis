@@ -1,4 +1,4 @@
-# Speech Emotion Recognition — Voxonics
+# Speech Emotion Recognition - Voxonics
 
 Automatically detects the emotional state of speakers in telephonic call-center recordings.  
 Classifies audio into four emotions: **Angry · Happy · Neutral · Sad**
@@ -8,8 +8,8 @@ Classifies audio into four emotions: **Angry · Happy · Neutral · Sad**
 ## What It Does
 
 - **Single-file prediction** — analyze any `.wav` or `.mp3` file and get an emotion confidence score in seconds
-- **Full call timeline** — slide a window through an entire call and see how emotion shifts minute by minute
-- **Continuously improvable** — label new clips, retrain, deploy; no code changes required
+- **Full call timeline** - slide a window through an entire call and see how emotion shifts minute by minute
+- **Continuously improvable** - label new clips, retrain, deploy; no code changes required
 
 ---
 
@@ -32,13 +32,13 @@ Classifies audio into four emotions: **Angry · Happy · Neutral · Sad**
 
 ```
 Raw audio (Azure Blob Storage)
-       ↓  01_sync_data.py       — download all datasets
-       ↓  02_extract_features.py — extract 128×128 Log-Mel Spectrograms
-       ↓  VoiceBasedAi.ipynb    — train 2D CNN (75 epochs, 4 emotion classes)
-       ↓  model_assets/         — final_emotion_model.keras + encoder.pickle
+       ↓  01_sync_data.py       - download all datasets
+       ↓  02_extract_features.py - extract 128×128 Log-Mel Spectrograms
+       ↓  VoiceBasedAi.ipynb    - train 2D CNN (75 epochs, 4 emotion classes)
+       ↓  model_assets/         - final_emotion_model.keras + encoder.pickle
        ↓
-Voxonics_Predictions.py  — single-file inference
-Call_Analysis.py         — full call emotion timeline
+Voxonics_Predictions.py  - single-file inference
+Call_Analysis.py         - full call emotion timeline
 ```
 
 **Model:** 4-block 2D CNN on Log-Mel Spectrograms (128×128)  
@@ -55,7 +55,7 @@ Call_Analysis.py         — full call emotion timeline
 │   ├── audio_pipeline.py       # Single source of truth for audio processing
 │   ├── 01_sync_data.py         # Azure Blob → local disk
 │   ├── 02_extract_features.py  # Spectrogram extraction + caching
-│   ├── 03_finetune.py          # Quick domain adaptation (Option B)
+│   ├── 03_finetune.py          # Quick domain adaptation 
 │   ├── split_audio.py          # Split long calls into 4s segments for labeling
 │   ├── speaker_splitter.py     # Speaker-aware train/val/test split
 │   ├── manifest_builder.py     # Dataset manifest with augmentation traceability
@@ -121,7 +121,7 @@ Extracts Log-Mel Spectrograms from all audio, caches `.npy` files, and outputs C
 Open and run `VoiceBasedAi.ipynb` from top to bottom.  
 Saves the trained model to `model_assets/final_emotion_model.keras`.
 
-### 4. Predict emotion — single file
+### 4. Predict emotion - single file
 
 ```powershell
 .venv\Scripts\python.exe Voxonics_Predictions.py path\to\audio.wav
@@ -143,7 +143,7 @@ sad          |   0.60%
 
 **Example output:**
 ```
-EMOTION TIMELINE — call_001.wav
+EMOTION TIMELINE - call_001.wav
 Duration : 1:24 (84.0s)
 
 TIME            EMOTION     CONFIDENCE
@@ -206,17 +206,17 @@ After adding clips:
 | MELD | Real TV dialogue (Friends) | ~1,400 |
 | **VOXONICS** | **Real telephonic call-center recordings** | **~570** |
 
-VOXONICS clips are weighted **5×** in training — reflecting their direct relevance to the production environment.
+VOXONICS clips are weighted **5×** in training - reflecting their direct relevance to the production environment.
 
 ---
 
 ## Key Design Decisions
 
-- **RMS normalization** — equalizes volume across speakers, reducing loudness-anger confusion
-- **Sliding window** — clips longer than 2.5s generate multiple training samples (stride: 1.25s)
-- **Speaker-aware split** — no speaker appears in more than one of train/val/test
-- **Temporal smoothing** — isolated "angry" windows surrounded by neutral windows are corrected in `Call_Analysis.py`
-- **Spectrogram caching** — `.npy` files prevent recomputing features across training runs
+- **RMS normalization** - equalizes volume across speakers, reducing loudness-anger confusion
+- **Sliding window** - clips longer than 2.5s generate multiple training samples (stride: 1.25s)
+- **Speaker-aware split** - no speaker appears in more than one of train/val/test
+- **Temporal smoothing** - isolated "angry" windows surrounded by neutral windows are corrected in `Call_Analysis.py`
+- **Spectrogram caching** - `.npy` files prevent recomputing features across training runs
 
 ---
 
